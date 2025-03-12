@@ -11,8 +11,6 @@ import { toast } from "react-toastify";
 import { AiOutlineEdit } from "react-icons/ai";
 
 // Define a type for user data from Backendless.
-// Note: We cast firstname and lastname as required, but if your backend may omit these,
-// you could mark them as optional (firstname?: string, lastname?: string).
 interface UserData {
   objectId: string;
   username: string;
@@ -34,7 +32,7 @@ interface Post {
   };
 }
 
-// This interface is used for the raw data returned from Backendless.
+// For the raw data returned from Backendless.
 interface RawPost {
   objectId?: string;
   title?: string;
@@ -127,7 +125,7 @@ export default function Profile() {
         setUser(updatedUser);
         await Swal.fire("Success", "Profile updated successfully!", "success");
         toast.success("Profile updated successfully!");
-      } catch (_error) {
+      } catch {
         console.error("Failed to update profile");
         toast.error("Failed to update profile!");
       }
