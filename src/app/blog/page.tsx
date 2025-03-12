@@ -24,6 +24,9 @@ interface User {
   username: string;
 }
 
+/**
+ * Sort options for posts.
+ */
 const SORT_OPTIONS = {
   "new-old": "createdAt DESC",
   "old-new": "createdAt ASC",
@@ -33,6 +36,25 @@ const SORT_OPTIONS = {
 
 const PLACEHOLDER_IMAGE =
   "https://i.pinimg.com/736x/2a/86/a5/2a86a560f0559704310d98fc32bd3d32.jpg";
+
+/**
+ * Helper function to limit posts per user.
+ * Assumes that the posts are sorted appropriately (e.g., newest first).
+ */
+const limitPostsPerUser = (posts: Post[], limit = 3): Post[] => {
+  const countMap: Record<string, number> = {};
+  const result: Post[] = [];
+  for (const post of posts) {
+    if (!countMap[post.ownerId]) {
+      countMap[post.ownerId] = 0;
+    }
+    if (countMap[post.ownerId] < limit) {
+      result.push(post);
+      countMap[post.ownerId]++;
+    }
+  }
+  return result;
+};
 
 export default function BlogPage() {
   const router = useRouter();
@@ -46,7 +68,7 @@ export default function BlogPage() {
   const [loading, setLoading] = useState(false);
   const observerRef = useRef<HTMLDivElement | null>(null);
 
-  // Load dan simpan filter dari localStorage
+  // Load and save filters from localStorage
   useEffect(() => {
     setSearch(localStorage.getItem("blog_search") || "");
     setCategory(localStorage.getItem("blog_category") || "all");
@@ -59,14 +81,14 @@ export default function BlogPage() {
     localStorage.setItem("blog_sort", sort);
   }, [search, category, sort]);
 
-  // Fungsi untuk mengambil data user berdasarkan ownerIds
+  // Function to fetch user data based on ownerIds
   const fetchUsers = async (ownerIds: string[], currentMap: Record<string, string>) => {
     const uniqueIds = [...new Set(ownerIds)];
-    const missingIds = uniqueIds.filter(id => !currentMap[id]);
+    const missingIds = uniqueIds.filter((id) => !currentMap[id]);
     if (missingIds.length === 0) return currentMap;
 
     const query = Backendless.DataQueryBuilder.create()
-      .setWhereClause(`objectId IN (${missingIds.map(id => `'${id}'`).join(", ")})`)
+      .setWhereClause(`objectId IN (${missingIds.map((id) => `'${id}'`).join(", ")})`)
       .setPageSize(100);
 
     try {
@@ -84,7 +106,7 @@ export default function BlogPage() {
     }
   };
 
-  // Fungsi untuk mengambil post baru berdasarkan filter (reset)
+  // Function to fetch new posts when filters change (reset)
   const fetchPostsReset = useCallback(async () => {
     if (loading) return;
     setLoading(true);
@@ -100,13 +122,15 @@ export default function BlogPage() {
       if (whereClause.length) query.setWhereClause(whereClause.join(" AND "));
 
       const data = await Backendless.Data.of("Post").find<Post>(query);
-      const ownerIds = data.map(post => post.ownerId);
+      const ownerIds = data.map((post) => post.ownerId);
       const mapping = await fetchUsers(ownerIds, userMap);
-      const enhancedPosts = data.map(post => ({
+      const enhancedPosts = data.map((post) => ({
         ...post,
-        author: { username: mapping[post.ownerId] || "Unknown" }
+        author: { username: mapping[post.ownerId] || "Unknown" },
       }));
-      setPosts(enhancedPosts);
+      // Limit to a maximum of 3 posts per user
+      const filteredPosts = limitPostsPerUser(enhancedPosts);
+      setPosts(filteredPosts);
       setHasMore(data.length === 6);
       setPage(2);
     } catch (error) {
@@ -116,7 +140,7 @@ export default function BlogPage() {
     }
   }, [search, category, sort, userMap, loading]);
 
-  // Fungsi untuk mengambil post tambahan (infinite scrolling)
+  // Function to fetch additional posts (for infinite scrolling)
   const fetchMorePosts = useCallback(async () => {
     if (loading) return;
     setLoading(true);
@@ -132,22 +156,19 @@ export default function BlogPage() {
       if (whereClause.length) query.setWhereClause(whereClause.join(" AND "));
 
       const data = await Backendless.Data.of("Post").find<Post>(query);
-      const ownerIds = data.map(post => post.ownerId);
+      const ownerIds = data.map((post) => post.ownerId);
       const mapping = await fetchUsers(ownerIds, userMap);
-      const enhancedPosts = data.map(post => ({
+      const enhancedPosts = data.map((post) => ({
         ...post,
-        author: { username: mapping[post.ownerId] || "Unknown" }
+        author: { username: mapping[post.ownerId] || "Unknown" },
       }));
-      setPosts(prev => {
-        const newPosts = [...prev, ...enhancedPosts];
-        // Hilangkan duplikat jika ada
-        return newPosts.filter(
-          (post, index, self) =>
-            self.findIndex(p => p.objectId === post.objectId) === index
-        );
+      setPosts((prev) => {
+        // Combine old and new posts, then limit to a maximum of 3 posts per user
+        const combined = [...prev, ...enhancedPosts];
+        return limitPostsPerUser(combined);
       });
       setHasMore(data.length === 6);
-      setPage(prev => prev + 1);
+      setPage((prev) => prev + 1);
     } catch (error) {
       console.error("Failed to fetch posts:", error);
     } finally {
@@ -155,12 +176,12 @@ export default function BlogPage() {
     }
   }, [search, category, sort, page, userMap, loading]);
 
-  // Observer untuk infinite scrolling
+  // Observer for infinite scrolling
   useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry?.isIntersecting && hasMore && !loading) {
-          setPage(prev => prev + 1);
+          setPage((prev) => prev + 1);
         }
       },
       { rootMargin: "200px" }
@@ -172,12 +193,12 @@ export default function BlogPage() {
     return () => observer.disconnect();
   }, [loading, hasMore]);
 
-  // Panggil fetchPostsReset saat filter berubah
+  // Call fetchPostsReset when filters change
   useEffect(() => {
     fetchPostsReset();
   }, [search, category, sort, fetchPostsReset]);
 
-  // Panggil fetchMorePosts saat page berubah (skip halaman pertama)
+  // Call fetchMorePosts when the page changes (skip page 1)
   useEffect(() => {
     if (page === 1) return;
     fetchMorePosts();
@@ -190,22 +211,22 @@ export default function BlogPage() {
         <meta name="description" content="Browse all blog posts." />
       </Head>
 
-      {/* Kontrol Filter */}
+      {/* Filter Controls */}
       <div className="flex flex-wrap gap-3 mb-6">
         <input
           type="text"
           placeholder="Search posts..."
           className="p-2 border rounded-md flex-1 min-w-[180px]"
-          onChange={debounce(e => setSearch(e.target.value), 300)}
+          onChange={debounce((e) => setSearch(e.target.value), 300)}
           defaultValue={search}
         />
 
         <select
           className="p-2 border rounded-md"
           value={category}
-          onChange={e => setCategory(e.target.value)}
+          onChange={(e) => setCategory(e.target.value)}
         >
-          {["all", "Tech", "Lifestyle"].map(opt => (
+          {["all", "Tech", "Lifestyle"].map((opt) => (
             <option key={opt} value={opt}>
               {opt}
             </option>
@@ -215,7 +236,9 @@ export default function BlogPage() {
         <select
           className="p-2 border rounded-md"
           value={sort}
-          onChange={e => setSort(e.target.value as keyof typeof SORT_OPTIONS)}
+          onChange={(e) =>
+            setSort(e.target.value as keyof typeof SORT_OPTIONS)
+          }
         >
           {Object.entries(SORT_OPTIONS).map(([key, val]) => (
             <option key={key} value={key}>
@@ -236,7 +259,7 @@ export default function BlogPage() {
         </button>
       </div>
 
-      {/* Tombol untuk membuat post baru */}
+      {/* Button to create a new post */}
       <button
         className="mb-6 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
         onClick={() => router.push("/blog/create")}
@@ -244,9 +267,9 @@ export default function BlogPage() {
         Create New Post
       </button>
 
-      {/* Tampilan daftar post */}
+      {/* Display list of posts */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {posts.map(post => (
+        {posts.map((post) => (
           <div
             key={post.objectId}
             className="bg-white border rounded-lg shadow hover:shadow-xl cursor-pointer"
@@ -273,7 +296,8 @@ export default function BlogPage() {
         ))}
       </div>
 
-      <div ref={observerRef} className="h-4" />
+      {/* Render the observer element only if there is more data */}
+      {hasMore && <div ref={observerRef} className="h-4" />}
       {loading && <p className="text-center mt-4">Loading more posts...</p>}
     </div>
   );
