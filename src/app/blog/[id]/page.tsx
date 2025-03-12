@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Backendless from "@/lib/backendless";
 import Swal from "sweetalert2";
 import { toast } from "react-toastify";
+import Image from "next/image";
 
 interface User {
   objectId?: string;
@@ -23,6 +24,16 @@ interface Post {
 }
 
 const categories = ["Technology", "Lifestyle", "Travel", "Food"];
+
+// Declare global window properties for Swal inline functions
+declare global {
+  interface Window {
+    handleFormat: (format: "bold" | "italic" | "underline") => void;
+    handleCategory: (category: string) => void;
+    handleFormatInfo: () => void;
+    selectedCategory: string;
+  }
+}
 
 export default function BlogDetail() {
   const router = useRouter();
@@ -81,27 +92,39 @@ export default function BlogDetail() {
     }
   };
 
-  const applyFormatting = (textarea: HTMLTextAreaElement, format: "bold" | "italic" | "underline") => {
+  const applyFormatting = (
+    textarea: HTMLTextAreaElement,
+    format: "bold" | "italic" | "underline"
+  ) => {
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const currentValue = textarea.value;
     const selectedText = currentValue.substring(start, end);
-    
+
     let formattedText = selectedText;
     switch (format) {
-      case "bold": formattedText = `**${selectedText}**`; break;
-      case "italic": formattedText = `*${selectedText}*`; break;
-      case "underline": formattedText = `<u>${selectedText}</u>`; break;
+      case "bold":
+        formattedText = `**${selectedText}**`;
+        break;
+      case "italic":
+        formattedText = `*${selectedText}*`;
+        break;
+      case "underline":
+        formattedText = `<u>${selectedText}</u>`;
+        break;
     }
-    
-    textarea.value = currentValue.substring(0, start) + formattedText + currentValue.substring(end);
+
+    textarea.value =
+      currentValue.substring(0, start) +
+      formattedText +
+      currentValue.substring(end);
     textarea.focus();
     textarea.setSelectionRange(start, start + formattedText.length);
   };
 
   const handleEdit = async () => {
     if (!post) return;
-    
+
     const { value: formValues } = await Swal.fire({
       title: "Edit Post",
       html: `
@@ -136,14 +159,18 @@ export default function BlogDetail() {
           <div>
             <label class="block text-sm font-medium mb-2">Category</label>
             <div class="grid grid-cols-2 gap-2">
-              ${categories.map(cat => `
+              ${categories
+                .map(
+                  (cat) => `
                 <button type="button" onclick="handleCategory('${cat}')" 
                   class="p-2 rounded-md text-sm ${
-                    cat === post.category 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-gray-100 hover:bg-gray-200'
+                    cat === post.category
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-100 hover:bg-gray-200"
                   }">${cat}</button>
-              `).join('')}
+              `
+                )
+                .join("")}
             </div>
           </div>
         </div>
@@ -152,22 +179,24 @@ export default function BlogDetail() {
       showCancelButton: true,
       confirmButtonText: "Save Changes",
       didOpen: () => {
-        let selectedCategory = post.category;
-        
-        (window as any).handleFormat = (format: string) => {
-          const textarea = document.getElementById('swal-content') as HTMLTextAreaElement;
-          applyFormatting(textarea, format as any);
+        window.selectedCategory = post.category;
+
+        window.handleFormat = (format: "bold" | "italic" | "underline") => {
+          const textarea = document.getElementById("swal-content") as HTMLTextAreaElement;
+          applyFormatting(textarea, format);
         };
 
-        (window as any).handleCategory = (category: string) => {
-          selectedCategory = category;
-          document.querySelectorAll('#swal2-html-container button').forEach(btn => {
-            btn.classList.toggle('bg-blue-600', btn.textContent === category);
-            btn.classList.toggle('text-white', btn.textContent === category);
-          });
+        window.handleCategory = (category: string) => {
+          window.selectedCategory = category;
+          document
+            .querySelectorAll<HTMLButtonElement>("#swal2-html-container button")
+            .forEach((btn) => {
+              btn.classList.toggle("bg-blue-600", btn.textContent === category);
+              btn.classList.toggle("text-white", btn.textContent === category);
+            });
         };
 
-        (window as any).handleFormatInfo = () => {
+        window.handleFormatInfo = () => {
           Swal.fire({
             title: "Text Formatting Instructions",
             html: `
@@ -178,15 +207,18 @@ export default function BlogDetail() {
               <p>Bullet Lists: Start with - or *</p>
               <p>Numbered Lists: Start with 1.</p>
             `,
-            icon: "info"
+            icon: "info",
           });
         };
       },
       preConfirm: () => {
-        const title = (document.getElementById('swal-title') as HTMLInputElement).value;
-        const content = (document.getElementById('swal-content') as HTMLTextAreaElement).value;
-        const image = (document.getElementById('swal-image') as HTMLInputElement).value;
-        const category = (window as any).selectedCategory || post.category;
+        const title = (document.getElementById("swal-title") as HTMLInputElement)
+          .value;
+        const content = (document.getElementById("swal-content") as HTMLTextAreaElement)
+          .value;
+        const image = (document.getElementById("swal-image") as HTMLInputElement)
+          .value;
+        const category = window.selectedCategory || post.category;
 
         if (!title || !content || !category) {
           Swal.showValidationMessage("Please fill in all required fields");
@@ -194,7 +226,7 @@ export default function BlogDetail() {
         }
 
         return { title, content, category, image };
-      }
+      },
     });
 
     if (formValues) {
@@ -226,15 +258,20 @@ export default function BlogDetail() {
       <div className="bg-white shadow-md rounded-lg p-6">
         <h1 className="text-4xl font-bold mb-2">{post.title}</h1>
         <p className="text-gray-500 text-sm mb-2">
-          By <span className="text-blue-500 font-semibold">{post.username || "Unknown"}</span> • 
-          {new Date(post.created).toLocaleDateString()} • {post.category}
+          By{" "}
+          <span className="text-blue-500 font-semibold">
+            {post.username || "Unknown"}
+          </span>{" "}
+          • {new Date(post.created).toLocaleDateString()} • {post.category}
         </p>
 
         {post.image ? (
-          <img
+          <Image
             src={post.image}
             alt="Post Banner"
-            className="w-full h-72 object-cover rounded-lg mb-4"  
+            width={800}
+            height={288}
+            className="w-full h-72 object-cover rounded-lg mb-4"
             loading="lazy"
           />
         ) : (

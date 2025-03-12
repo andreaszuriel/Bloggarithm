@@ -5,6 +5,7 @@ import { useCookies } from "react-cookie";
 import { useRouter } from "next/navigation";
 import Swal from "sweetalert2";
 import Link from "next/link";
+import Image from "next/image";
 import Backendless from "@/lib/backendless";
 
 export default function Navbar() {
@@ -15,23 +16,18 @@ export default function Navbar() {
     "username",
   ]);
   const router = useRouter();
-  // Determine login status based solely on the user token.
   const isLoggedIn = Boolean(cookies["user-token"]);
-  // Local state for the username (initially from cookie, if available).
   const [localUsername, setLocalUsername] = useState(cookies.username || "");
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
-    // If user-token exists but username is not set, fetch user details.
     if (isLoggedIn && !localUsername) {
       const fetchUser = async () => {
         try {
           const currentUser = await Backendless.UserService.getCurrentUser();
           if (currentUser && currentUser.username) {
             setLocalUsername(currentUser.username);
-            // Convert 7 days to a Date object.
             const expiresDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-            // Update the cookie so that it persists.
             setCookie("username", currentUser.username, { expires: expiresDate, path: "/" });
           }
         } catch (error) {
@@ -42,7 +38,6 @@ export default function Navbar() {
     }
   }, [isLoggedIn, localUsername, setCookie]);
 
-  // Sign-out handler: confirmation then remove cookies and redirect.
   const handleSignOut = () => {
     Swal.fire({
       title: "Are you sure?",
@@ -64,7 +59,6 @@ export default function Navbar() {
     });
   };
 
-  // Toggle mobile menu visibility.
   const toggleMenu = () => {
     setIsOpen(!isOpen);
   };
@@ -74,11 +68,9 @@ export default function Navbar() {
       <div className="container mx-auto flex items-center justify-between p-4">
         {/* Logo / Home link */}
         <Link href="/" onClick={() => setIsOpen(false)} className="flex items-center">
-          <img
-            src="/logo.png"
-            alt="Logo"
-            className="w-24 sm:w-28 md:w-32 lg:w-40"
-          />
+          <div className="relative w-24 sm:w-28 md:w-32 lg:w-40 h-10">
+            <Image src="/logo.png" alt="Logo" fill className="object-contain" />
+          </div>
         </Link>
 
         {/* Desktop Menu: visible on medium screens and above */}

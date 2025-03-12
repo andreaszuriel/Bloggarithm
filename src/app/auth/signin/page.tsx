@@ -103,7 +103,7 @@ export default function SignIn() {
         </button>
 
         <div className="mt-4 text-center text-gray-600">
-          Don't have an account?{" "}
+          Don&apos;t have an account?{" "}
           <button
             onClick={() => router.push("/auth/signup")}
             className="text-blue-500 font-semibold hover:underline"

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Head from "next/head";
+import Image from "next/image";
 import Backendless from "@/lib/backendless";
 import debounce from "lodash.debounce";
 
@@ -45,7 +46,7 @@ export default function BlogPage() {
   const [loading, setLoading] = useState(false);
   const observerRef = useRef<HTMLDivElement | null>(null);
 
-  // Load/save filters from localStorage
+  // Load dan simpan filter dari localStorage
   useEffect(() => {
     setSearch(localStorage.getItem("blog_search") || "");
     setCategory(localStorage.getItem("blog_category") || "all");
@@ -58,7 +59,7 @@ export default function BlogPage() {
     localStorage.setItem("blog_sort", sort);
   }, [search, category, sort]);
 
-  // Modified fetchUsers that returns the updated mapping immediately
+  // Fungsi untuk mengambil data user berdasarkan ownerIds
   const fetchUsers = async (ownerIds: string[], currentMap: Record<string, string>) => {
     const uniqueIds = [...new Set(ownerIds)];
     const missingIds = uniqueIds.filter(id => !currentMap[id]);
@@ -83,14 +84,14 @@ export default function BlogPage() {
     }
   };
 
-  const fetchPosts = useCallback(async (reset = false) => {
+  // Fungsi untuk mengambil post baru berdasarkan filter (reset)
+  const fetchPostsReset = useCallback(async () => {
     if (loading) return;
     setLoading(true);
-
     try {
       const query = Backendless.DataQueryBuilder.create()
         .setPageSize(6)
-        .setOffset(reset ? 0 : (page - 1) * 6)
+        .setOffset(0)
         .setSortBy([SORT_OPTIONS[sort]]);
 
       const whereClause: string[] = [];
@@ -100,47 +101,87 @@ export default function BlogPage() {
 
       const data = await Backendless.Data.of("Post").find<Post>(query);
       const ownerIds = data.map(post => post.ownerId);
-      // Get the updated mapping for these ownerIds
       const mapping = await fetchUsers(ownerIds, userMap);
-
-      // Bypass the extra process by immediately setting the author from the mapping
       const enhancedPosts = data.map(post => ({
         ...post,
         author: { username: mapping[post.ownerId] || "Unknown" }
       }));
-
-      setPosts(prev => {
-        const newPosts = reset ? enhancedPosts : [...prev, ...enhancedPosts];
-        // Remove duplicates if any
-        return newPosts.filter(
-          (post, index, self) =>
-            self.findIndex(p => p.objectId === post.objectId) === index
-        );
-      });
-
+      setPosts(enhancedPosts);
       setHasMore(data.length === 6);
-      if (reset) setPage(2);
+      setPage(2);
     } catch (error) {
       console.error("Failed to fetch posts:", error);
     } finally {
       setLoading(false);
     }
-  }, [search, category, sort, page, loading, userMap]);
+  }, [search, category, sort, userMap, loading]);
 
-  // Intersection Observer for infinite scroll
+  // Fungsi untuk mengambil post tambahan (infinite scrolling)
+  const fetchMorePosts = useCallback(async () => {
+    if (loading) return;
+    setLoading(true);
+    try {
+      const query = Backendless.DataQueryBuilder.create()
+        .setPageSize(6)
+        .setOffset((page - 1) * 6)
+        .setSortBy([SORT_OPTIONS[sort]]);
+
+      const whereClause: string[] = [];
+      if (search) whereClause.push(`title LIKE '%${search}%'`);
+      if (category !== "all") whereClause.push(`category = '${category}'`);
+      if (whereClause.length) query.setWhereClause(whereClause.join(" AND "));
+
+      const data = await Backendless.Data.of("Post").find<Post>(query);
+      const ownerIds = data.map(post => post.ownerId);
+      const mapping = await fetchUsers(ownerIds, userMap);
+      const enhancedPosts = data.map(post => ({
+        ...post,
+        author: { username: mapping[post.ownerId] || "Unknown" }
+      }));
+      setPosts(prev => {
+        const newPosts = [...prev, ...enhancedPosts];
+        // Hilangkan duplikat jika ada
+        return newPosts.filter(
+          (post, index, self) =>
+            self.findIndex(p => p.objectId === post.objectId) === index
+        );
+      });
+      setHasMore(data.length === 6);
+      setPage(prev => prev + 1);
+    } catch (error) {
+      console.error("Failed to fetch posts:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [search, category, sort, page, userMap, loading]);
+
+  // Observer untuk infinite scrolling
   useEffect(() => {
     const observer = new IntersectionObserver(
-      ([entry]) => entry?.isIntersecting && hasMore && !loading && setPage(p => p + 1),
+      ([entry]) => {
+        if (entry?.isIntersecting && hasMore && !loading) {
+          setPage(prev => prev + 1);
+        }
+      },
       { rootMargin: "200px" }
     );
 
-    if (observerRef.current) observer.observe(observerRef.current);
+    if (observerRef.current) {
+      observer.observe(observerRef.current);
+    }
     return () => observer.disconnect();
   }, [loading, hasMore]);
 
+  // Panggil fetchPostsReset saat filter berubah
   useEffect(() => {
-    fetchPosts(true);
-  }, [search, category, sort]);
+    fetchPostsReset();
+  }, [search, category, sort, fetchPostsReset]);
+
+  // Panggil fetchMorePosts saat page berubah (skip halaman pertama)
+  useEffect(() => {
+    if (page === 1) return;
+    fetchMorePosts();
+  }, [page, fetchMorePosts]);
 
   return (
     <div className="max-w-6xl mx-auto p-4 sm:p-6 mt-[3cm]">
@@ -149,7 +190,7 @@ export default function BlogPage() {
         <meta name="description" content="Browse all blog posts." />
       </Head>
 
-      {/* Controls */}
+      {/* Kontrol Filter */}
       <div className="flex flex-wrap gap-3 mb-6">
         <input
           type="text"
@@ -165,7 +206,9 @@ export default function BlogPage() {
           onChange={e => setCategory(e.target.value)}
         >
           {["all", "Tech", "Lifestyle"].map(opt => (
-            <option key={opt} value={opt}>{opt}</option>
+            <option key={opt} value={opt}>
+              {opt}
+            </option>
           ))}
         </select>
 
@@ -193,7 +236,7 @@ export default function BlogPage() {
         </button>
       </div>
 
-      {/* Content */}
+      {/* Tombol untuk membuat post baru */}
       <button
         className="mb-6 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
         onClick={() => router.push("/blog/create")}
@@ -201,6 +244,7 @@ export default function BlogPage() {
         Create New Post
       </button>
 
+      {/* Tampilan daftar post */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {posts.map(post => (
           <div
@@ -208,13 +252,14 @@ export default function BlogPage() {
             className="bg-white border rounded-lg shadow hover:shadow-xl cursor-pointer"
             onClick={() => router.push(`/blog/${post.objectId}`)}
           >
-            <img
-              src={post.image || PLACEHOLDER_IMAGE}
-              alt={post.title}
-              className="w-full h-48 object-cover rounded-t-lg"
-              loading="lazy"
-              onError={e => (e.currentTarget.src = PLACEHOLDER_IMAGE)}
-            />
+            <div className="relative w-full h-48 rounded-t-lg">
+              <Image
+                src={post.image || PLACEHOLDER_IMAGE}
+                alt={post.title}
+                fill
+                className="object-cover rounded-t-lg"
+              />
+            </div>
             <div className="p-4">
               <h3 className="text-lg font-semibold mb-2">{post.title}</h3>
               <p className="text-sm text-gray-600 mb-1">

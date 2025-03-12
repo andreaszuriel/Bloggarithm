@@ -75,7 +75,7 @@ export default function CreateBlogPage() {
       }
       const newValue = currentValue.substring(0, start) + formattedText + currentValue.substring(end);
       setFormData({ ...formData, content: newValue });
-      // reset cursor position:
+      // Reset cursor position:
       setTimeout(() => {
         textarea.focus();
         textarea.setSelectionRange(start, start + formattedText.length);
@@ -132,7 +132,7 @@ export default function CreateBlogPage() {
 
       // Redirect to "/profile" after submission
       router.push("/profile");
-    } catch (error) {
+    } catch {
       Swal.fire("Error!", "Failed to save post.", "error");
     }
   };

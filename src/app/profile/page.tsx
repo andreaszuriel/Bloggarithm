@@ -5,11 +5,14 @@ import Cookies from "js-cookie";
 import { useRouter } from "next/navigation";
 import Backendless from "@/lib/backendless";
 import Link from "next/link";
+import Image from "next/image";
 import Swal from "sweetalert2";
 import { toast } from "react-toastify";
 import { AiOutlineEdit } from "react-icons/ai";
 
-// Define a type for user data from Backendless
+// Define a type for user data from Backendless.
+// Note: We cast firstname and lastname as required, but if your backend may omit these,
+// you could mark them as optional (firstname?: string, lastname?: string).
 interface UserData {
   objectId: string;
   username: string;
@@ -31,8 +34,27 @@ interface Post {
   };
 }
 
+// This interface is used for the raw data returned from Backendless.
+interface RawPost {
+  objectId?: string;
+  title?: string;
+  image?: string;
+  category?: string;
+  created?: string;
+  ownerId?: string;
+  author?: { username?: string } | Array<{ username?: string }> | null;
+}
+
+// Define a simple interface for the query builder used by Backendless.
+interface QueryBuilder {
+  setWhereClause(clause: string): void;
+  setRelated(relations: string[]): void;
+  sortByClause?: string;
+  pageSize?: number;
+}
+
 export default function Profile() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<UserData | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [accordionTitles, setAccordionTitles] = useState<
     { objectId: string; title: string }[]
@@ -70,16 +92,16 @@ export default function Profile() {
       title: "Edit Profile",
       html:
         `<input id="swal-input1" class="swal2-input" placeholder="Username" value="${
-          user.username || ""
+          user?.username || ""
         }">` +
         `<input id="swal-input2" class="swal2-input" placeholder="First Name" value="${
-          user.firstname || ""
+          user?.firstname || ""
         }">` +
         `<input id="swal-input3" class="swal2-input" placeholder="Last Name" value="${
-          user.lastname || ""
+          user?.lastname || ""
         }">` +
         `<input id="swal-input4" class="swal2-input" placeholder="Profile Image URL" value="${
-          user.image || ""
+          user?.image || ""
         }">`,
       focusConfirm: false,
       preConfirm: () => {
@@ -105,8 +127,8 @@ export default function Profile() {
         setUser(updatedUser);
         await Swal.fire("Success", "Profile updated successfully!", "success");
         toast.success("Profile updated successfully!");
-      } catch (error) {
-        console.error("Failed to update profile:", error);
+      } catch (_error) {
+        console.error("Failed to update profile");
         toast.error("Failed to update profile!");
       }
     }
@@ -134,33 +156,30 @@ export default function Profile() {
           return;
         }
 
-        setUser(currentUser);
+        // Explicitly cast the returned user object via unknown.
+        setUser((currentUser as unknown) as UserData);
 
         // Query for the latest 6 posts sorted by created date descending.
-        const latestQuery = Backendless.DataQueryBuilder.create();
-        latestQuery.setWhereClause(`ownerId = '${currentUser.objectId}'`);
-        (latestQuery as any).sortByClause = "created DESC";
-        (latestQuery as any).pageSize = 6;
+        const latestQuery = Backendless.DataQueryBuilder.create() as QueryBuilder;
+        latestQuery.setWhereClause(`ownerId = '${(currentUser as unknown as UserData).objectId}'`);
+        latestQuery.sortByClause = "created DESC";
+        latestQuery.pageSize = 6;
         latestQuery.setRelated(["author"]);
-        const latestPosts = await Backendless.Data.of("post").find(latestQuery);
+        const latestPosts = (await Backendless.Data.of("post").find(latestQuery)) as RawPost[];
 
         const formattedLatestPosts: Post[] = await Promise.all(
-          latestPosts.map(async (post: any) => {
+          latestPosts.map(async (post: RawPost) => {
             let username = "Unknown";
             if (post.author) {
-              const authorObj = Array.isArray(post.author)
-                ? post.author[0]
-                : post.author;
+              const authorObj = Array.isArray(post.author) ? post.author[0] : post.author;
               username = authorObj?.username || "Unknown";
             }
             // If username is still unknown, fetch user data using ownerId.
             if (username === "Unknown" && post.ownerId) {
               try {
-                const userData = (await Backendless.Data.of("users").findById(
-                  post.ownerId
-                )) as UserData;
+                const userData = (await Backendless.Data.of("users").findById(post.ownerId)) as UserData;
                 username = userData.username;
-              } catch (error) {
+              } catch {
                 username = "Unknown";
               }
             }
@@ -169,8 +188,8 @@ export default function Profile() {
               title: post.title || "Untitled",
               image: post.image || "/default-post.png",
               category: post.category || "",
-              created: post.created,
-              ownerId: post.ownerId,
+              created: post.created || "",
+              ownerId: post.ownerId || "",
               author: { username },
             };
           })
@@ -179,13 +198,13 @@ export default function Profile() {
         setPosts(formattedLatestPosts);
 
         // Query for all posts (for accordion) sorted by title alphabetically.
-        const titleQuery = Backendless.DataQueryBuilder.create();
-        titleQuery.setWhereClause(`ownerId = '${currentUser.objectId}'`);
-        (titleQuery as any).sortByClause = "title ASC";
-        const allPosts = await Backendless.Data.of("post").find(titleQuery);
+        const titleQuery = Backendless.DataQueryBuilder.create() as QueryBuilder;
+        titleQuery.setWhereClause(`ownerId = '${(currentUser as unknown as UserData).objectId}'`);
+        titleQuery.sortByClause = "title ASC";
+        const allPosts = (await Backendless.Data.of("post").find(titleQuery)) as RawPost[];
 
         const formattedTitles: { objectId: string; title: string }[] = allPosts.map(
-          (post: any) => ({
+          (post: RawPost) => ({
             objectId: post.objectId || "",
             title: post.title || "Untitled",
           })
@@ -211,12 +230,13 @@ export default function Profile() {
   return (
     <div className="p-4 md:p-8 max-w-screen-xl mx-auto">
       {/* Banner Section */}
-      <div className="relative mb-10 mt-20">
-        <img
+      <div className="relative mb-10 mt-20 h-60 sm:h-80 md:h-96">
+        <Image
           src={bannerUrl}
           alt="Banner"
-          className="w-full h-60 sm:h-80 md:h-96 object-cover rounded-lg shadow-lg"
-          loading="lazy"
+          fill
+          className="object-cover rounded-lg shadow-lg"
+          sizes="(max-width: 768px) 100vw, 80vw"
         />
         <button
           onClick={handleEditBanner}
@@ -230,12 +250,14 @@ export default function Profile() {
       <div className="relative -mt-16 mb-6">
         <div className="flex flex-col md:flex-row items-center justify-between bg-white shadow-lg rounded-lg p-4 md:p-6">
           <div className="flex items-center gap-4">
-            <img
-              src={user.image || "/default-user.png"}
-              alt={user.username}
-              className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-full object-cover"
-              loading="lazy"
-            />
+            <div className="relative w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24">
+              <Image
+                src={user.image || "/default-user.png"}
+                alt={user.username}
+                fill
+                className="rounded-full object-cover"
+              />
+            </div>
             <div>
               <p className="font-bold text-xl">{user.username}</p>
               <p className="text-lg">
@@ -287,19 +309,18 @@ export default function Profile() {
           posts.map((post) => (
             <Link key={post.objectId} href={`/blog/${post.objectId}`}>
               <div className="bg-gray-100 border rounded-lg overflow-hidden shadow hover:shadow-lg transition cursor-pointer">
-                <img
-                  src={post.image}
-                  alt={post.title}
-                  className="w-full h-48 object-cover"
-                  loading="lazy"
-                />
+                <div className="relative w-full h-48">
+                  <Image
+                    src={post.image}
+                    alt={post.title}
+                    fill
+                    className="object-cover"
+                  />
+                </div>
                 <div className="p-4">
                   <h3 className="text-lg font-semibold">{post.title}</h3>
                   <p className="text-sm text-gray-600">
-                    by{" "}
-                    {post.author && post.author.username
-                      ? post.author.username
-                      : "Unknown"}
+                    by {post.author?.username || "Unknown"}
                   </p>
                   <p className="text-sm text-gray-500">
                     {post.category} -{" "}
