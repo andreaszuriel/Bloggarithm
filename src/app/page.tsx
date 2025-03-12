@@ -93,25 +93,25 @@ export default function LandingPage() {
               title="Smart Editor"
               description="Real-time AI suggestions & grammar perfection"
               icon="✨"
-              onClick={() => router.push("/editor")}
+              onClick={() => router.push("/blog")}
             />
             <FeatureCard 
               title="Deep Analytics"
               description="Audience engagement insights & SEO scoring"
               icon="📈"
-              onClick={() => router.push("/analytics")}
+              onClick={() => router.push("/blog")}
             />
             <FeatureCard 
               title="Templates"
               description="Professionally designed writing frameworks"
               icon="📑"
-              onClick={() => router.push("/templates")}
+              onClick={() => router.push("/blog")}
             />
             <FeatureCard 
               title="Collaboration"
               description="Real-time co-writing & feedback system"
               icon="👥"
-              onClick={() => router.push("/collab")}
+              onClick={() => router.push("/blog")}
             />
           </div>
         </section>
@@ -132,7 +132,7 @@ export default function LandingPage() {
               </button>
               <button 
                 className="border-2 border-white text-white px-8 py-4 rounded-full hover:bg-white/10 transition-all"
-                onClick={() => router.push("/demo")}
+                onClick={() => router.push("/blog")}
               >
                 Watch Demo Video
               </button>
