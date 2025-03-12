@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Head from "next/head";
 import Image from "next/image";
@@ -66,13 +66,23 @@ export default function BlogPage() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
-  const observerRef = useRef<HTMLDivElement | null>(null);
+
+  // Memoize the debounced function so it is not recreated on every render
+  const debouncedSetSearch = useCallback(
+    debounce((value: string) => {
+      setSearch(value);
+    }, 300),
+    []
+  );
 
   // Load and save filters from localStorage
   useEffect(() => {
     setSearch(localStorage.getItem("blog_search") || "");
     setCategory(localStorage.getItem("blog_category") || "all");
-    setSort((localStorage.getItem("blog_sort") as keyof typeof SORT_OPTIONS) || "new-old");
+    setSort(
+      (localStorage.getItem("blog_sort") as keyof typeof SORT_OPTIONS) ||
+        "new-old"
+    );
   }, []);
 
   useEffect(() => {
@@ -82,13 +92,18 @@ export default function BlogPage() {
   }, [search, category, sort]);
 
   // Function to fetch user data based on ownerIds
-  const fetchUsers = async (ownerIds: string[], currentMap: Record<string, string>) => {
+  const fetchUsers = async (
+    ownerIds: string[],
+    currentMap: Record<string, string>
+  ) => {
     const uniqueIds = [...new Set(ownerIds)];
     const missingIds = uniqueIds.filter((id) => !currentMap[id]);
     if (missingIds.length === 0) return currentMap;
 
     const query = Backendless.DataQueryBuilder.create()
-      .setWhereClause(`objectId IN (${missingIds.map((id) => `'${id}'`).join(", ")})`)
+      .setWhereClause(
+        `objectId IN (${missingIds.map((id) => `'${id}'`).join(", ")})`
+      )
       .setPageSize(100);
 
     try {
@@ -140,7 +155,7 @@ export default function BlogPage() {
     }
   }, [search, category, sort, userMap, loading]);
 
-  // Function to fetch additional posts (for infinite scrolling)
+  // Function to fetch additional posts (load more)
   const fetchMorePosts = useCallback(async () => {
     if (loading) return;
     setLoading(true);
@@ -176,33 +191,10 @@ export default function BlogPage() {
     }
   }, [search, category, sort, page, userMap, loading]);
 
-  // Observer for infinite scrolling
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry?.isIntersecting && hasMore && !loading) {
-          setPage((prev) => prev + 1);
-        }
-      },
-      { rootMargin: "200px" }
-    );
-
-    if (observerRef.current) {
-      observer.observe(observerRef.current);
-    }
-    return () => observer.disconnect();
-  }, [loading, hasMore]);
-
   // Call fetchPostsReset when filters change
   useEffect(() => {
     fetchPostsReset();
   }, [search, category, sort, fetchPostsReset]);
-
-  // Call fetchMorePosts when the page changes (skip page 1)
-  useEffect(() => {
-    if (page === 1) return;
-    fetchMorePosts();
-  }, [page, fetchMorePosts]);
 
   return (
     <div className="max-w-6xl mx-auto p-4 sm:p-6 mt-[3cm]">
@@ -217,7 +209,7 @@ export default function BlogPage() {
           type="text"
           placeholder="Search posts..."
           className="p-2 border rounded-md flex-1 min-w-[180px]"
-          onChange={debounce((e) => setSearch(e.target.value), 300)}
+          onChange={(e) => debouncedSetSearch(e.target.value)}
           defaultValue={search}
         />
 
@@ -289,15 +281,26 @@ export default function BlogPage() {
                 by {post.author?.username || "Unknown"}
               </p>
               <p className="text-sm text-gray-500">
-                {post.category} • {new Date(post.createdAt).toLocaleDateString()}
+                {post.category} •{" "}
+                {new Date(post.createdAt).toLocaleDateString()}
               </p>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Render the observer element only if there is more data */}
-      {hasMore && <div ref={observerRef} className="h-4" />}
+      {/* Load More Button */}
+      {hasMore && !loading && (
+        <div className="flex justify-center mt-4">
+          <button
+            onClick={fetchMorePosts}
+            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+          >
+            Load More
+          </button>
+        </div>
+      )}
+
       {loading && <p className="text-center mt-4">Loading more posts...</p>}
     </div>
   );

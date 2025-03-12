@@ -126,7 +126,7 @@ export default function LandingPage() {
             <div className="flex flex-col sm:flex-row justify-center gap-4">
               <button 
                 className="bg-white text-blue-600 px-8 py-4 rounded-full hover:bg-gray-100 transition-all shadow-lg hover:scale-105"
-                onClick={() => router.push("/auth/signup")}
+                onClick={() => router.push("/auth/blog")}
               >
                 Try Free for 14 Days
               </button>
