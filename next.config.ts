@@ -1,9 +1,14 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   images: {
-    domains: ["unair.ac.id"], // ✅ Tambahkan domain ini
+    domains: [
+      "escapeno-web.imgix.net",
+      "media.4-paws.org",
+      "unair.ac.id",
+      "www.unileverfoodsolutions.co.id",
+      "img.imageboss.me"
+    ],
   },
 };
 
-export default nextConfig;
+module.exports = nextConfig;
