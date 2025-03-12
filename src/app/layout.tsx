@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "My Blog App",
+  title: "Bloggarithm",
   description: "A modern blogging platform",
 };
 
